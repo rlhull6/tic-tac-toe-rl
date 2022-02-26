@@ -1,0 +1,14 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyBuilder
+target/
+
+# PyCharm, IntelliJ, Pydev etc
+.idea/
+.project
+.pydevproject
+
+output/*
