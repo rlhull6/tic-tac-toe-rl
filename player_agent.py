@@ -92,6 +92,10 @@ class Player():
         self.update_state(self.Q[action][board.get_board_state()], board, board.get_board_state(), action)
 
     def save_q_state(self, pickle_file):
+        try:
+            os.mkdir("environments")
+        except FileExistsError:
+            pass
         with open(pickle_file, "wb") as f:
             # Pickle everything we need as a list for easy loading and saving
             pickle.dump([self.Q, self.win_log, self.draw_log, self.loss_log], f)
