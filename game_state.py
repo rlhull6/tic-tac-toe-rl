@@ -90,9 +90,9 @@ def print_analysis(win_log, loss_log, draw_log):
     win_log.print_analysis()
 
 
-def update_iterative_history_csv(win_log, loss_log, draw_log, csv_file=join(os.getcwd(), join("output", datetime.now().strftime("%d_%m_%Y_%H-%M-%S_history.csv")))):
+def update_iterative_history_csv(win_log, loss_log, draw_log, agent_x_type, agent_o_type, epsilon, csv_file=None):
     if not csv_file:
-        csv_file = join(os.getcwd(), join("output", datetime.now().strftime("%d_%m_%Y_%H-%M-%S_history.csv")))
+        csv_file = join(os.getcwd(), join("output", f"agentx_{agent_x_type}_agenty_{agent_o_type}" + datetime.now().strftime("%d_%m_%Y_%H-%M-%S_history.csv")))
     total_previous_count = win_log.total_previous_counts + loss_log.total_previous_counts + draw_log.total_previous_counts
     total_current_count = win_log.game_log_count + loss_log.game_log_count + draw_log.game_log_count
     

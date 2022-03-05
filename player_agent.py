@@ -17,8 +17,9 @@ class Player():
     def __init__(self, marker, rows=3, columns=3):
         self.marker = marker
         # Set at .2 for testing however can set to -1 to remove random pathing
-        self.random_action = .2
-        self.alpha = .1
+        self.random_action = -1
+        self.epsilon_decay = .999
+        self.alpha = .01
         self.gamma = .99
         self.previous_move = Move()
         # Q is composed of available actions 
@@ -31,6 +32,7 @@ class Player():
         self.win_log = GameLog(result_type=GameResult.WIN)
         self.loss_log = GameLog(result_type=GameResult.LOSS)
         self.draw_log = GameLog(result_type=GameResult.DRAW)
+        self.agent_type = "QLearning"
 
     def _get_best_move(self, moves, moves_hash):
         best_moves = []
@@ -82,6 +84,8 @@ class Player():
         # More random as k becomes larger?  Idea 1/k
         if random() < self.random_action:
             action = self._get_random_move(moves, moves_hash)
+            self.random_action = self.random_action * self.epsilon_decay
+            board.random_action = True
         else:
             action = self._get_best_move(moves, moves_hash)
         
@@ -118,28 +122,34 @@ class Player():
         except FileNotFoundError:
             print("Q environment file does not exist.  One will be created upon calling save.")
 
-    def record_end_of_game(self, board, result):
-        if result == GameResult.WIN:
-            self.update_state(board.win_value, board)
-            self.win_log.update_all_attributes(self.previous_move.action,
-                                               board.get_board_state())
-            if os.environ['PRINT_OUTPUT'] == "TRUE":
-                print("Win")
-        if result == GameResult.LOSS:
-            self.update_state(board.lose_value, board)
-            self.loss_log.update_all_attributes(self.previous_move.action,
-                                               board.get_board_state())
-            if os.environ['PRINT_OUTPUT'] == "TRUE":
-                print("Loss")
-        if result == GameResult.DRAW:
-            self.update_state(board.draw_value, board)
-            self.draw_log.update_all_attributes(self.previous_move.action,
-                                               board.get_board_state())
-            if os.environ['PRINT_OUTPUT'] == "TRUE":
-                print("Draw Game")
-
+    def record_end_of_game(self, board, result, record_random_games):
         if os.environ['PRINT_OUTPUT'] == "TRUE":
             print(board.pretty_print_board())
+        if result == GameResult.WIN:
+            self.update_state(board.win_value, board)
+            if record_random_games or not board.random_action:
+                self.win_log.update_all_attributes(self.previous_move.action,
+                                                   board.get_board_state())
+            if os.environ['PRINT_OUTPUT'] == "TRUE":
+                # Since this will likely only be used for human players for printing,
+                #  the loss is for the RL.  For everything else, the perspective is for
+                #  the RL.
+                print("\n------------  Loss")
+        if result == GameResult.LOSS:
+            self.update_state(board.lose_value, board)
+            if record_random_games or not board.random_action:
+                self.loss_log.update_all_attributes(self.previous_move.action,
+                                                   board.get_board_state())
+            if os.environ['PRINT_OUTPUT'] == "TRUE":
+                print("\n------------  Win -------------\n")  
+        if result == GameResult.DRAW:
+            self.update_state(board.draw_value, board)
+            if record_random_games or not board.random_action:
+                self.draw_log.update_all_attributes(self.previous_move.action,
+                                                   board.get_board_state())
+            if os.environ['PRINT_OUTPUT'] == "TRUE":
+                print("\n------------  Draw Game -------------\n")
+
 
 class RandomPlayer(Player):
 
@@ -148,6 +158,7 @@ class RandomPlayer(Player):
         self.win_log = GameLog(result_type=GameResult.WIN)
         self.loss_log = GameLog(result_type=GameResult.LOSS)
         self.draw_log = GameLog(result_type=GameResult.DRAW)
+        self.agent_type = "Random"
 
     def makeMove(self, board):
         moves, _ = board.get_available_moves(self.marker)
@@ -160,5 +171,37 @@ class RandomPlayer(Player):
     def load_q_state(self, pickle_file):
         pass
 
-    def record_end_of_game(self, board, result):
+    def record_end_of_game(self, board, result, record_random):
+        pass
+
+class HumanPlayer(Player):
+
+    def __init__(self, marker, rows=3, columns=3):
+        self.marker = marker
+        self.win_log = GameLog(result_type=GameResult.WIN)
+        self.loss_log = GameLog(result_type=GameResult.LOSS)
+        self.draw_log = GameLog(result_type=GameResult.DRAW)
+        self.agent_type = "Human"
+
+    def makeMove(self, board):
+        board.pretty_print_board()
+        sel = input("Enter selection, either row, column in tic tac toe or ABCDEFGHI: ")
+        sel = sel.strip()
+        
+        if len(sel) == 1:
+            row, col = board.abc_to_row_col(sel)
+            while not board.is_valid_move(row, col):
+                sel = input("Invalid selection, please try again: ")
+                sel = sel.strip()
+                row, col = board.abc_to_row_col(sel)
+
+        board.set_tile(row, col, self.marker)
+
+    def update_state(self, next_best_q, board, state = None, action = None):
+        pass
+
+    def load_q_state(self, pickle_file):
+        pass
+
+    def record_end_of_game(self, board, result, record_random):
         pass

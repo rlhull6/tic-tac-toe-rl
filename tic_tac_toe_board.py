@@ -13,6 +13,8 @@ class TicTacToeBoard():
         self.lose_value = -5
         self.draw_value = -1
         self.transition_value = 0
+        self.random_action = False
+        self.abc = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
 
         for _ in range(rows):
             row = []
@@ -78,8 +80,27 @@ class TicTacToeBoard():
         else:
             return self.lose_value # we lost
 
-    def pretty_print_board(self):
+    def is_valid_move(self, row, col):
+        if self.board[row][col] == '-':
+            return True
+        return False
+        
+    def abc_to_row_col(self, abc):
+        ind = self.abc.index(abc)
+        col = ind % self.col
+        row = int(ind / self.col)
+        return row, col
+
+    def pretty_print_board(self, alpha=True):
+        counter = 0
         print("_____________")
         for row in self.board:
-            print("| " + " | ".join(row) + " |")
+            row_vals = []
+            for col in row:
+                if col == "-":
+                    row_vals.append(self.abc[counter])
+                else:
+                    row_vals.append(col)
+                counter += 1
+            print("| " + " | ".join(row_vals) + " |")
         print("_____________")
