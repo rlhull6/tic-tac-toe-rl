@@ -104,3 +104,6 @@ class TicTacToeBoard():
                 counter += 1
             print("| " + " | ".join(row_vals) + " |")
         print("_____________")
+
+    def moves_left(self):
+        return self.get_board_state().count("-")

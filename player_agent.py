@@ -1,8 +1,9 @@
+from game_state import GameResult, GameLog
 from random import random, seed, choice, randint
 import pickle
 import os
 import sys
-from game_state import GameResult, GameLog
+import copy
 
 seed(6)
 
@@ -17,8 +18,9 @@ class Player():
     def __init__(self, marker, rows=3, columns=3):
         self.marker = marker
         # Set at .2 for testing however can set to -1 to remove random pathing
-        self.random_action = -1
-        self.epsilon_decay = .999
+        self.random_action = [.5, .5, .5, .5, .5, .5, .5, .5, .5, .5]
+        self.epsilon_decay = .9999  # As this gets closer to 1, decay gets slower
+        self.random_count = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.alpha = .01
         self.gamma = .99
         self.previous_move = Move()
@@ -32,7 +34,8 @@ class Player():
         self.win_log = GameLog(result_type=GameResult.WIN)
         self.loss_log = GameLog(result_type=GameResult.LOSS)
         self.draw_log = GameLog(result_type=GameResult.DRAW)
-        self.agent_type = "QLearning"
+        self.agent_type = "Sarsa"
+        self.random_action_stages = [100, 100, 100, 100, 100, 100, 500, 500, 1000, 1000]
 
     def _get_best_move(self, moves, moves_hash):
         best_moves = []
@@ -48,7 +51,7 @@ class Player():
                 best_move_score = self.Q[moves[m]][moves_hash[m]]
             elif self.Q[moves[m]][moves_hash[m]] == best_move_score:
                 best_moves.append(m)
-        choice([moves[m] for m in best_moves])
+        #choice([moves[m] for m in best_moves])
 
         return choice([moves[m] for m in best_moves])
 
@@ -78,14 +81,17 @@ class Player():
 
     def makeMove(self, board):
         board_state_init = board.get_board_state()
-
         moves, moves_hash = board.get_available_moves(self.marker)
-        
-        # More random as k becomes larger?  Idea 1/k
-        if random() < self.random_action:
+
+        moves_left = board.moves_left()
+        if random() < self.random_action[moves_left]:
             action = self._get_random_move(moves, moves_hash)
-            self.random_action = self.random_action * self.epsilon_decay
             board.random_action = True
+            self.random_count[moves_left] += 1
+            
+            if self.random_count[moves_left] > self.random_action_stages[moves_left]:
+                self.random_count[moves_left] = 0
+                self.random_action[moves_left] = self.random_action[moves_left] * self.epsilon_decay
         else:
             action = self._get_best_move(moves, moves_hash)
         
@@ -118,6 +124,9 @@ class Player():
                 self.draw_log = pickle_list[2]
                 self.loss_log = pickle_list[3]
                 self.update_all_counters()
+                self.previous_move.action = None
+                self.previous_move.reward = None
+                self.previous_move.state = None
                 
         except FileNotFoundError:
             print("Q environment file does not exist.  One will be created upon calling save.")
@@ -134,21 +143,21 @@ class Player():
                 # Since this will likely only be used for human players for printing,
                 #  the loss is for the RL.  For everything else, the perspective is for
                 #  the RL.
-                print("\n------------  Loss")
+                print("\n------------  You Lose  ------------ \n\n\n")
         if result == GameResult.LOSS:
             self.update_state(board.lose_value, board)
             if record_random_games or not board.random_action:
                 self.loss_log.update_all_attributes(self.previous_move.action,
                                                    board.get_board_state())
             if os.environ['PRINT_OUTPUT'] == "TRUE":
-                print("\n------------  Win -------------\n")  
+                print("\n------------  Win -------------\n\n\n")  
         if result == GameResult.DRAW:
             self.update_state(board.draw_value, board)
             if record_random_games or not board.random_action:
                 self.draw_log.update_all_attributes(self.previous_move.action,
                                                    board.get_board_state())
             if os.environ['PRINT_OUTPUT'] == "TRUE":
-                print("\n------------  Draw Game -------------\n")
+                print("\n------------  Draw Game -------------\n\n\n")
 
 
 class RandomPlayer(Player):
@@ -182,6 +191,7 @@ class HumanPlayer(Player):
         self.loss_log = GameLog(result_type=GameResult.LOSS)
         self.draw_log = GameLog(result_type=GameResult.DRAW)
         self.agent_type = "Human"
+        os.environ['PRINT_OUTPUT'] = 'TRUE'
 
     def makeMove(self, board):
         board.pretty_print_board()
@@ -205,3 +215,142 @@ class HumanPlayer(Player):
 
     def record_end_of_game(self, board, result, record_random):
         pass
+
+class QLearningPlayer(Player):
+
+    def makeMove(self, board):
+        board_state_init = board.get_board_state()
+
+        moves, moves_hash = board.get_available_moves(self.marker)
+
+        moves_left = board.moves_left()
+        if random() < self.random_action[moves_left]:
+            action = self._get_random_move(moves, moves_hash)
+            self.random_count[moves_left] += 1
+            
+            if self.random_count[moves_left] > self.random_action_stages[moves_left]:
+                self.random_count[moves_left] = 0
+                self.random_action[moves_left] = self.random_action[moves_left] * self.epsilon_decay
+            
+            board.random_action = True
+            q_move = self._get_best_move(moves, moves_hash)
+            # Make pretend move for q
+            board_temp = copy.deepcopy(board)
+            board_temp.set_tile(q_move[0], q_move[1], self.marker)
+            q_score = self.Q[q_move][board_temp.get_board_state()]
+            board.set_tile(action[0], action[1], self.marker)
+        else:
+            action = self._get_best_move(moves, moves_hash)
+            board.set_tile(action[0], action[1], self.marker)
+            q_score = self.Q[action][board.get_board_state()]
+
+        board_state = board.get_board_state()
+        #  Since other player alters state we can't do a look ahead.
+        self.update_state(q_score, board, board.get_board_state(), action)
+
+class TeacherSarsa(Player):
+
+    def __init__(self, marker, rows=3, columns=3):
+        super().__init__(marker, rows, columns)
+        self.random_action = [-100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100]
+        self.agent_type = "TeacherSarsa"
+        self.history = []
+
+    def re_load_agent(self, pickle_file):
+        self.load_q_state(pickle_file)
+        self.random_action = [-100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100]
+        
+    def check_win_condition(self, board, mark):
+        for i in range(len(board)):
+            row = board[i]
+            if row[0] == mark and row[1] == mark and row[2] == '-':
+                return (i, 2)
+            if row[1] == mark and row[2] == mark and row[0] == '-':
+                return (i, 0)
+            if row[0] == mark and row[2] == mark and row[1] == '-':
+                return (i, 1)
+
+        # Check for column win
+        for i in range(len(board)):
+            if board[0][i] == mark and board[1][i] == mark and board[2][i] == '-':
+                return (2, i)
+            if board[1][i] == mark and board[2][i] == mark and board[0][i] == '-':
+                return (0, i)
+            if board[2][i] == mark and board[0][i] == mark and board[1][i] == '-':
+                return (1, i)
+            
+        # Check for cross win
+        if board[0][0] == mark and board[1][1] == mark and board[2][2] == '-':
+            return (2, 2)
+        if board[1][1] == mark and board[2][2] == mark and board[0][0] == '-':
+            return (0, 0)
+        if board[0][0] == mark and board[2][2] == mark and board[1][1] == '-':
+            return (1, 1)
+    
+        if board[0][2] == mark and board[1][1] == mark and board[2][0] == '-':
+            return (2, 0)
+        if board[2][0] == mark and board[1][1] == mark and board[0][2] == '-':
+            return (0, 2)
+        if board[0][2] == mark and board[2][0] == mark and board[1][1] == '-':
+            return (1, 1)
+
+
+        return None
+
+
+
+
+
+    def makeMove(self, board_obj):
+        move = self.get_move_teacher(board_obj)
+        temp =board_obj.get_board_state()
+        if board_obj.get_board_state().count("-") > 7:
+            self.history = []
+        self.history.append((move, copy.deepcopy(board_obj.board)))
+        return board_obj.set_tile(move[0], move[1], self.marker)
+    
+    def get_move_teacher(self, board_obj):
+        board = board_obj.board
+        board_state_init = board_obj.get_board_state()
+        # For now hard code
+        mark = "X"
+        
+        # Check for row across wins
+        state = self.check_win_condition(board, self.marker)
+        if state:
+            return (state[0], state[1])
+
+        state = self.check_win_condition(board, mark)
+        if state:
+            return (state[0], state[1])
+    
+        # Diamond trick
+        if board[0][0] == self.marker and board[2][2] == '-':
+            return (2, 2)
+        if board[0][2] == self.marker and board[2][0] == '-':
+            return (2, 0)
+        if board[2][2] == self.marker and board[0][0] == '-':
+            return (0, 0)
+        if board[2][0] == self.marker and board[0][2] == '-':
+            return (0, 2)
+        
+        # Middle move is also a good move
+        # if board[1][1] == '-':
+        #     return (1, 1)
+        
+        # Corners are next best
+        if board[0][0] == '-':
+            return (0, 0)
+        if board[0][2] == '-':
+            return (0, 2)
+        if board[2][2] == '-':
+            return (2, 2)
+        if board[2][0] == '-':
+            return (2, 0)
+        
+        # No viable move pick random
+        moves, moves_hash = board_obj.get_available_moves(self.marker)
+        move = choice(moves)
+        return (move[0], move[1]) 
+    
+        
