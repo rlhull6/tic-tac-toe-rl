@@ -111,11 +111,11 @@ def update_iterative_history_csv(win_log, loss_log, draw_log, agent_x_type, agen
 
     if not exists(csv_file):
         with open(csv_file, "w") as f:
-            f.write("TotalGames,GameCount,wins,losses,draw,win_roc,loss_roc,daw_roc\n")
+            f.write("TotalGames,GameCount,wins,losses,draw,win_roc,loss_roc,daw_roc,agent\n")
     
     with open(csv_file, "a") as f:
         f.write(str(total_previous_count) + "," + str(total_current_count) + "," + str(win_log.game_log_count) + "," +
-                str(loss_log.game_log_count) + "," + str(draw_log.game_log_count) + "," + str(win_roc) + "," + str(loss_roc) + "," + str(draw_roc) + "\n")
+                str(loss_log.game_log_count) + "," + str(draw_log.game_log_count) + "," + str(win_roc) + "," + str(loss_roc) + "," + str(draw_roc) + "," + agent_o_type + "\n")
     return csv_file
     
     

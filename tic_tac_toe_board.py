@@ -9,9 +9,9 @@ class TicTacToeBoard():
         self.rows = rows
         self.col = column
         self.board = []
-        self.win_value = 5
-        self.lose_value = -5
-        self.draw_value = -1
+        self.win_value = 1
+        self.lose_value = -1
+        self.draw_value = .5
         self.transition_value = 0
         self.random_action = False
         self.abc = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
@@ -41,6 +41,10 @@ class TicTacToeBoard():
         return moves, moves_hash
 
     def set_tile(self, row, col, marker):
+        # Defensive coding to make sure none of our updates do anything funny
+        if self.board[row][col] != '-':
+            raise Exception("Issue sending invalid row col for row: " + str(row) + \
+                            "column: " + str(col) + " for marker " + marker)
         self.board[row][col] = marker
 
     def find_winner(self, marker):
@@ -107,3 +111,40 @@ class TicTacToeBoard():
 
     def moves_left(self):
         return self.get_board_state().count("-")
+
+    def check_win_condition(self, mark):
+        board = self.board
+        for i in range(len(board)):
+            row = board[i]
+            if row[0] == mark and row[1] == mark and row[2] == '-':
+                return (i, 2)
+            if row[1] == mark and row[2] == mark and row[0] == '-':
+                return (i, 0)
+            if row[0] == mark and row[2] == mark and row[1] == '-':
+                return (i, 1)
+
+        # Check for column win
+        for i in range(len(board)):
+            if board[0][i] == mark and board[1][i] == mark and board[2][i] == '-':
+                return (2, i)
+            if board[1][i] == mark and board[2][i] == mark and board[0][i] == '-':
+                return (0, i)
+            if board[2][i] == mark and board[0][i] == mark and board[1][i] == '-':
+                return (1, i)
+            
+        # Check for cross win
+        if board[0][0] == mark and board[1][1] == mark and board[2][2] == '-':
+            return (2, 2)
+        if board[1][1] == mark and board[2][2] == mark and board[0][0] == '-':
+            return (0, 0)
+        if board[0][0] == mark and board[2][2] == mark and board[1][1] == '-':
+            return (1, 1)
+    
+        if board[0][2] == mark and board[1][1] == mark and board[2][0] == '-':
+            return (2, 0)
+        if board[2][0] == mark and board[1][1] == mark and board[0][2] == '-':
+            return (0, 2)
+        if board[0][2] == mark and board[2][0] == mark and board[1][1] == '-':
+            return (1, 1)
+
+        return None
